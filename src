@@ -1,0 +1,73 @@
+import { CommandsAPI } from "@revenge-mod/plugins";
+
+let token: string | null = null;
+
+async function getToken() {
+    if (token) return token;
+
+    const res = await fetch("https://api.redgifs.com/v2/auth/temporary", {
+        method: "GET",
+    });
+
+    if (!res.ok) throw new Error("Failed to get RedGIFs token");
+
+    const data = await res.json();
+    token = data.token;
+
+    return token;
+}
+
+async function randomGif(tag: string) {
+    const auth = await getToken();
+
+    const res = await fetch(
+        `https://api.redgifs.com/v2/gifs/search?search_text=${encodeURIComponent(tag)}&count=50`,
+        {
+            headers: {
+                Authorization: `Bearer ${auth}`,
+            },
+        }
+    );
+
+    if (!res.ok) throw new Error("Search failed");
+
+    const data = await res.json();
+
+    if (!data.gifs?.length)
+        throw new Error("No GIFs found.");
+
+    const gif =
+        data.gifs[Math.floor(Math.random() * data.gifs.length)];
+
+    return gif.urls.hd || gif.urls.sd;
+}
+
+CommandsAPI.registerCommand({
+    name: "gif",
+    description: "Get a random SFW RedGIF",
+
+    options: [
+        {
+            name: "tag",
+            description: "Search tag",
+            type: 3, // STRING
+            required: true,
+        },
+    ],
+
+    async execute(args) {
+        const tag = args[0].value;
+
+        try {
+            const url = await randomGif(tag);
+
+            return {
+                content: url,
+            };
+        } catch (e) {
+            return {
+                content: `❌ ${e instanceof Error ? e.message : "Unknown error"}`,
+            };
+        }
+    },
+});
